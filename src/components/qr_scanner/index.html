@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>QR Scanner</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      width: 100%; height: 100%;
+    }
+
+    /* Full-screen video container */
+    #qr-view {
+      position: absolute;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      overflow: hidden;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    canvas { display: none; }
+
+    /* Large transparent scan frame in center */
+    #scan-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 260px;
+      height: 260px;
+      border: 3px solid #EB459E;
+      border-radius: 16px;
+      /* Pure black surrounding overlay with transparent center */
+      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.85);
+      pointer-events: none;
+      z-index: 2;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { border-color: #EB459E; transform: translate(-50%, -50%) scale(0.98); }
+      50%      { border-color: #5865F2; transform: translate(-50%, -50%) scale(1.02); }
+    }
+
+    /* Subtle light-blue vertical animated scanning line */
+    #scan-line {
+      position: absolute;
+      left: 8%; right: 8%; height: 3px;
+      background: rgba(135, 206, 250, 0.85);
+      box-shadow: 0 0 8px rgba(135, 206, 250, 0.8);
+      top: 10%;
+      animation: scanMove 2.2s linear infinite;
+      pointer-events: none;
+      border-radius: 2px;
+      z-index: 3;
+    }
+    @keyframes scanMove {
+      0%, 100% { top: 10%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 90%; opacity: 0; }
+    }
+
+    /* Floating top-left back button */
+    #back-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 40px;
+      height: 40px;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 1.4rem;
+      cursor: pointer;
+      z-index: 10;
+      transition: background-color 0.2s;
+    }
+    #back-btn:hover {
+      background: rgba(0,0,0,0.8);
+    }
+
+    /* Floating bottom manual trigger button */
+    #manual-trigger {
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+      transition: background-color 0.2s;
+      white-space: nowrap;
+    }
+    #manual-trigger:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Fallback card */
+    #fallback {
+      display: none;
+      width: calc(100vw - 32px);
+      max-width: 320px;
+      padding: 28px 24px;
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+      border: 1px solid #e2e8f0; text-align: center;
+      animation: slideUp .45s cubic-bezier(.16,1,.3,1) both;
+      z-index: 15;
+    }
+    #fallback h3 { margin: 0 0 6px; color: #36454F; font-size: 1.15rem; font-weight: 700; }
+    #fallback p  { margin: 0 0 20px; color: #64748b; font-size: .85rem; }
+    #code-input {
+      width: 100%; padding: 14px 8px;
+      font-size: 2.2rem; font-weight: 800;
+      letter-spacing: 10px; text-align: center; text-transform: uppercase;
+      border: 2px solid #cbd5e1; border-radius: 12px;
+      color: #36454F; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      font-family: 'Courier New', monospace;
+    }
+    #code-input:focus { border-color: #EB459E; box-shadow: 0 0 0 3px rgba(235,69,158,.15); }
+    #err-msg { color: #ef4444; font-size: .84rem; margin-top: 10px; min-height: 18px; font-weight: 600; }
+
+    /* Centered Glassmorphism Status Modal (AttendanceStatusModal) */
+    #status-modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      animation: fadeIn 0.3s ease;
+    }
+    .modal-content {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      padding: 32px 24px;
+      width: 85%;
+      max-width: 300px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: #fff;
+    }
+    #modal-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 16px 0 8px;
+    }
+    #modal-message {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0 0 24px;
+      line-height: 1.45;
+    }
+    #modal-btn {
+      background: #22c55e;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    #modal-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Modal SVG animations */
+    .modal-svg {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      display: block;
+      margin: 0 auto;
+      stroke-width: 4;
+      stroke-miterlimit: 10;
+    }
+    .modal-svg-circle {
+      stroke-dasharray: 166;
+      stroke-dashoffset: 166;
+      stroke-width: 4;
+      stroke-linecap: round;
+      fill: none;
+      animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+    }
+    .success-circle { stroke: #22c55e; }
+    .warning-circle { stroke: #f59e0b; }
+    .error-circle { stroke: #ef4444; }
+
+    .modal-svg-path {
+      stroke-dasharray: 48;
+      stroke-dashoffset: 48;
+      stroke-linecap: round;
+      stroke-width: 4;
+      transform-origin: 50% 50%;
+    }
+    .success-check {
+      stroke: #22c55e;
+      animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.5s forwards;
+    }
+    .error-x {
+      stroke: #ef4444;
+      animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.5s forwards;
+    }
+
+    @keyframes stroke {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* Success Check Ripple */
+    .checkmark-wrapper {
+      position: relative;
+      display: inline-block;
+      margin: 0 auto;
+    }
+    .checkmark-wrapper::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 4px solid rgba(34, 197, 94, 0.35);
+      animation: ripple 1.4s infinite ease-out;
+      pointer-events: none;
+    }
+    @keyframes ripple {
+      0%   { transform: scale(0.95); opacity: 1; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+
+    /* Spinner */
+    #spinner { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 32px; z-index: 15; }
+    .spin-ring {
+      width: 42px; height: 42px;
+      border: 4px solid rgba(255,255,255,.2);
+      border-top-color: #EB459E;
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    #spinner p { color: #fff; font-size: .9rem; margin-top: 14px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes scaleUp {
+      from { transform: scale(0.85); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(36px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body>
+
+  <!-- Camera view -->
+  <div id="qr-view">
+    <div id="back-btn">←</div>
+    <div id="manual-trigger">⌨️ Keyboard: Enter Code</div>
+    <canvas id="canvas"></canvas>
+    <video id="video" playsinline muted></video>
+    <div id="scan-frame">
+      <div id="scan-line"></div>
+    </div>
+  </div>
+
+  <!-- Spinner shown while backend verifies -->
+  <div id="spinner">
+    <div class="spin-ring"></div>
+    <p>Verifying code…</p>
+  </div>
+
+  <!-- Fallback: manual code input -->
+  <div id="fallback">
+    <h3>Can't scan the QR?</h3>
+    <p>Type the 6-character Attendance Code shown on your teacher's screen.</p>
+    <input id="code-input" type="text" maxlength="6" placeholder="------" autocomplete="off" inputmode="text" />
+    <div id="err-msg"></div>
+  </div>
+
+  <!-- Centered Glassmorphism Status Modal (AttendanceStatusModal) -->
+  <div id="status-modal" style="display: none;">
+    <div class="modal-content">
+      <div id="modal-animation-container"></div>
+      <h3 id="modal-title"></h3>
+      <p id="modal-message"></p>
+      <button id="modal-btn">Scan Again</button>
+    </div>
+  </div>
+
+  <script>
+    let stream = null;
+    let scanning = true;
+    let submitted = false;
+
+    const qrView    = document.getElementById('qr-view');
+    const video     = document.getElementById('video');
+    const canvasEl  = document.getElementById('canvas');
+    const ctx       = canvasEl.getContext('2d');
+    const scanFrame = document.getElementById('scan-frame');
+    const fallback  = document.getElementById('fallback');
+    const codeInput = document.getElementById('code-input');
+    const errMsg    = document.getElementById('err-msg');
+    const spinner   = document.getElementById('spinner');
+    const trigger   = document.getElementById('manual-trigger');
+    const backBtn   = document.getElementById('back-btn');
+    const statusModal = document.getElementById('status-modal');
+
+    function notifyReady() {
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: 'streamlit:componentReady',
+        apiVersion: 1
+      }, '*');
+      updateHeight();
+    }
+
+    function updateHeight() {
+      const height = window.innerHeight || document.documentElement.clientHeight || 560;
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: 'streamlit:setFrameHeight',
+        height: height
+      }, '*');
+    }
+
+    function postValue(v) {
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: 'streamlit:setComponentValue',
+        value: v
+      }, '*');
+    }
+
+    function showFallback(msg) {
+      stopCamera();
+      qrView.style.display   = 'none';
+      spinner.style.display  = 'none';
+      fallback.style.display = 'block';
+      statusModal.style.display = 'none';
+      if (msg) errMsg.innerText = msg;
+      updateHeight();
+      setTimeout(() => codeInput.focus(), 80);
+    }
+
+    function showSpinner() {
+      qrView.style.display   = 'none';
+      fallback.style.display = 'none';
+      spinner.style.display  = 'flex';
+      statusModal.style.display = 'none';
+      updateHeight();
+    }
+
+    function stopCamera() {
+      scanning = false;
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+    }
+
+    function startCamera() {
+      scanning = true;
+      submitted = false;
+      
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(s => {
+          stream = s;
+          video.srcObject = s;
+          video.play();
+          requestAnimationFrame(tick);
+        })
+        .catch(() => {
+          showFallback('Camera unavailable. Enter code manually.');
+        });
+    }
+
+    function resetScanner() {
+      submitted = false;
+      qrView.style.display   = 'block';
+      fallback.style.display = 'none';
+      spinner.style.display  = 'none';
+      statusModal.style.display = 'none';
+      errMsg.innerText       = '';
+      codeInput.value        = '';
+      
+      if (!stream) {
+        startCamera();
+      }
+      updateHeight();
+    }
+
+    // AttendanceStatusModal implementation
+    function showAttendanceStatusModal(status, title, message) {
+      stopCamera();
+      
+      const animContainer = document.getElementById('modal-animation-container');
+      const titleEl = document.getElementById('modal-title');
+      const messageEl = document.getElementById('modal-message');
+      const btn = document.getElementById('modal-btn');
+      
+      titleEl.innerText = title;
+      messageEl.innerText = message;
+      
+      if (status === 'success') {
+        animContainer.innerHTML = `
+          <div class="checkmark-wrapper">
+            <svg class="modal-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+              <circle class="modal-svg-circle success-circle" cx="26" cy="26" r="25" fill="none"/>
+              <path class="modal-svg-path success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+          </div>
+        `;
+        btn.style.display = 'none';
+        
+        // Auto-close success modal after 2 seconds
+        setTimeout(() => {
+          hideAttendanceStatusModal();
+        }, 2000);
+        
+      } else if (status === 'already_recorded') {
+        animContainer.innerHTML = `
+          <div class="checkmark-wrapper">
+            <svg class="modal-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+              <circle class="modal-svg-circle warning-circle" cx="26" cy="26" r="25" fill="none"/>
+              <path fill="#f59e0b" d="M26 12a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm-2 9h4v18h-4V21z"/>
+            </svg>
+          </div>
+        `;
+        btn.style.display = 'block';
+        btn.style.backgroundColor = '#f59e0b';
+        btn.innerText = 'OK';
+        btn.onclick = hideAttendanceStatusModal;
+        
+      } else { // error / invalid_qr
+        animContainer.innerHTML = `
+          <div class="checkmark-wrapper">
+            <svg class="modal-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+              <circle class="modal-svg-circle error-circle" cx="26" cy="26" r="25" fill="none"/>
+              <path class="modal-svg-path error-x" fill="none" d="M16 16l20 20M36 16L16 36"/>
+            </svg>
+          </div>
+        `;
+        btn.style.display = 'block';
+        btn.style.backgroundColor = '#ef4444';
+        btn.innerText = 'Scan Again';
+        btn.onclick = hideAttendanceStatusModal;
+      }
+      
+      qrView.style.display = 'none';
+      fallback.style.display = 'none';
+      spinner.style.display = 'none';
+      statusModal.style.display = 'flex';
+      updateHeight();
+    }
+
+    function hideAttendanceStatusModal() {
+      statusModal.style.display = 'none';
+      postValue("RESET_STATUS");
+      resetScanner();
+    }
+
+    // Tap Back trigger
+    backBtn.addEventListener('click', () => {
+      postValue("BACK");
+    });
+
+    // Tap manual trigger
+    trigger.addEventListener('click', () => {
+      showFallback('');
+    });
+
+    // Swipe-left gesture detection on scanner area to trigger manual fallback
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    qrView.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].screenX;
+      touchStartY = e.touches[0].screenY;
+    }, { passive: true });
+
+    qrView.addEventListener('touchend', e => {
+      let diffX = touchStartX - e.changedTouches[0].screenX;
+      let diffY = Math.abs(touchStartY - e.changedTouches[0].screenY);
+      if (diffX > 50 && diffY < 60) {
+        showFallback('');
+      }
+    }, { passive: true });
+
+    // Start camera immediately on load
+    startCamera();
+
+    // Continuous frame scan
+    function tick() {
+      if (!scanning) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvasEl.width  = video.videoWidth;
+        canvasEl.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvasEl.width, canvasEl.height);
+        const img = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+        const qr  = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        if (qr && qr.data && !submitted) {
+          submitted = true;
+          showSpinner();
+          stopCamera();
+          postValue(qr.data);
+          return;
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // Input uppercase convert and limit to 6
+    codeInput.addEventListener('input', () => {
+      const val = codeInput.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+      codeInput.value = val;
+      errMsg.innerText = '';
+      if (val.length === 6 && !submitted) {
+        submitted = true;
+        showSpinner();
+        postValue(val);
+      }
+    });
+
+    let lastStatus = 'idle';
+
+    // Handle verification response messages from Streamlit
+    window.addEventListener('message', e => {
+      const d = e.data;
+      if (d && d.type === 'streamlit:render') {
+        const status = d.args && d.args.status;
+        const err = d.args && d.args.error_msg;
+        
+        if (status && status !== 'idle') {
+          if (status !== lastStatus) {
+            lastStatus = status;
+            if (status === 'success') {
+              showAttendanceStatusModal('success', 'Attendance Recorded', 'Thank you! Your presence has been verified.');
+            } else if (status === 'already_recorded') {
+              showAttendanceStatusModal('already_recorded', 'Already Recorded', 'Your attendance for this session is already logged.');
+            } else if (status === 'invalid_qr') {
+              showAttendanceStatusModal('invalid_qr', 'Invalid QR Code', err || 'This code has expired or is invalid.');
+            } else if (status === 'error') {
+              showAttendanceStatusModal('error', 'Verification Failed', err || 'An error occurred during verification.');
+            }
+          }
+        } else {
+          lastStatus = 'idle';
+          statusModal.style.display = 'none';
+          if (!stream && scanning) {
+            startCamera();
+          }
+        }
+      }
+    });
+
+    window.addEventListener('load', notifyReady);
+    window.addEventListener('resize', updateHeight);
+  </script>
+</body>
+</html>
