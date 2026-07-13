@@ -820,30 +820,19 @@ def teacher_screen_login():
             st.session_state['login_type'] = None
             st.rerun()
 
-    # Render teacher svg (ss.svg as animated lottie-style icon)
+    # Render student svg illustration
     import base64
     import os
     try:
         assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
         svg_path = os.path.join(assets_dir, "ss.svg")
-        if os.path.exists(svg_path):
-            with open(svg_path, "rb") as f:
-                svg_base64 = base64.b64encode(f.read()).decode("utf-8")
-            st.markdown(f"""
-                <style>
-                @keyframes float {{
-                    0% {{ transform: translateY(0px); }}
-                    50% {{ transform: translateY(-10px); }}
-                    100% {{ transform: translateY(0px); }}
-                }}
-                .animated-svg-lottie {{
-                    animation: float 3.5s ease-in-out infinite;
-                }}
-                </style>
-                <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px;">
-                    <img class="animated-svg-lottie" src="data:image/svg+xml;base64,{svg_base64}" style="height: 150px;" />
-                </div>
-            """, unsafe_allow_html=True)
+        with open(svg_path, "rb") as f:
+            svg_base64 = base64.b64encode(f.read()).decode("utf-8")
+        st.markdown(f"""
+            <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 10px; margin-top: 10px;">
+                <img src="data:image/svg+xml;base64,{svg_base64}" style="height: 120px;" />
+            </div>
+        """, unsafe_allow_html=True)
     except Exception:
         pass
 
@@ -882,20 +871,6 @@ def teacher_screen_login():
     if st.button('Register Instead', icon=':material/passkey:', use_container_width=True):
         st.session_state.teacher_login_type = 'register'
         st.rerun()
-
-    # Add study.svg in bottom right corner
-    import base64
-    import os
-    try:
-        assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-        svg_path = os.path.join(assets_dir, "study.svg")
-        with open(svg_path, "rb") as f:
-            svg_base64 = base64.b64encode(f.read()).decode("utf-8")
-        st.markdown(f"""
-            <img src="data:image/svg+xml;base64,{svg_base64}" style="position:fixed; bottom:20px; right:20px; width:300px; pointer-events:none; z-index:10; opacity:0.8; mix-blend-mode:multiply;" />
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
 
     footer_dashboard()
 
