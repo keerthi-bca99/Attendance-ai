@@ -820,6 +820,22 @@ def teacher_screen_login():
             st.session_state['login_type'] = None
             st.rerun()
 
+    # Render teacher svg
+    import base64
+    import os
+    try:
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+        svg_path = os.path.join(assets_dir, "oo.svg")
+        with open(svg_path, "rb") as f:
+            svg_base64 = base64.b64encode(f.read()).decode("utf-8")
+        st.markdown(f"""
+            <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px;">
+                <img src="data:image/svg+xml;base64,{svg_base64}" style="height: 120px;" />
+            </div>
+        """, unsafe_allow_html=True)
+    except Exception:
+        pass
+
     st.markdown('<h2 style="color:#36454F; text-align:center;">Login using password</h2>', unsafe_allow_html=True)
     st.space()
     st.space()

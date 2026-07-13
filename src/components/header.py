@@ -19,7 +19,10 @@ def header_home():
     st.markdown(f"""
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; margin-bottom:30px; margin-top:30px">
             <img src='{logo_url}' style='height:160px;' />
-            <h1 style='text-align:center; color:#36454F; margin-bottom: 5px;'>ATTEND<br/>IQ</h1>
+            <h1 style='text-align:center; color:#36454F; margin-bottom: 5px; line-height: 1.1;'>
+                <span style='white-space: nowrap;'>ATTEND</span><br/>
+                <span style='white-space: nowrap;'>IQ</span>
+            </h1>
             <span style='color:#36454F; font-family:sans-serif; font-size:0.9rem; font-weight:600; background:rgba(54,69,79,0.1); padding:2px 8px; border-radius:12px;'>v2.0.0</span>
         </div>   
                 
@@ -34,7 +37,10 @@ def header_dashboard():
         <div style="display:flex; align-items:center; justify-content:center; gap:10px">
             <img src='{logo_url}' style='height:120px;' />
             <div>
-                <h2 style='text-align:left; color:#36454F; margin:0; line-height:1.1;'>ATTEND<br/>IQ</h2>
+                <h2 style='text-align:left; color:#36454F; margin:0; line-height:1.1;'>
+                    <span style='white-space: nowrap;'>ATTEND</span><br/>
+                    <span style='white-space: nowrap;'>IQ</span>
+                </h2>
                 <span style='color:#36454F; font-family:sans-serif; font-size:0.75rem; font-weight:600; background:rgba(54,69,79,0.1); padding:1px 6px; border-radius:10px;'>v2.0.0</span>
             </div>
         </div>   
