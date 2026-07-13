@@ -8,7 +8,7 @@ def style_background_home():
         <style>
 
                 .stApp {
-                    background: #FAA0A0 !important;
+                    background: #FF69B4 !important;
                 }
 
                 .stApp div[data-testid="stColumn"]{
