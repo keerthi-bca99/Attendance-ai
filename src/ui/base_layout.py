@@ -3,23 +3,48 @@ import streamlit as st
 
 
 def style_background_home():
-
-    st.markdown("""
-        <style>
-
-                .stApp {
-                    background: #5865F2 !important;
-                }
-
-                .stApp div[data-testid="stColumn"]{
-                    background-color:#E0E3FF !important;
-                    padding:2.5rem !important;
-                    border-radius: 5rem !important;
+    import base64
+    import os
+    assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    bg_img_path = os.path.join(assets_dir, "baground.png")
+    
+    bg_base64 = ""
+    if os.path.exists(bg_img_path):
+        with open(bg_img_path, "rb") as f:
+            bg_base64 = base64.b64encode(f.read()).decode("utf-8")
+            
+    if bg_base64:
+        st.markdown(f"""
+            <style>
+                    .stApp {{
+                        background-image: url("data:image/png;base64,{bg_base64}") !important;
+                        background-size: cover !important;
+                        background-position: center !important;
+                        background-repeat: no-repeat !important;
+                    }}
+                    .stApp div[data-testid="stColumn"]{{
+                        background-color: rgba(224, 227, 255, 0.85) !important;
+                        backdrop-filter: blur(8px) !important;
+                        padding:2.5rem !important;
+                        border-radius: 5rem !important;
+                        }}
+            </style>  
+                    """
+                ,unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <style>
+                    .stApp {
+                        background: #5865F2 !important;
                     }
-        </style>  
-
-                """
-            ,unsafe_allow_html=True)
+                    .stApp div[data-testid="stColumn"]{
+                        background-color:#E0E3FF !important;
+                        padding:2.5rem !important;
+                        border-radius: 5rem !important;
+                        }
+            </style>  
+                    """
+                ,unsafe_allow_html=True)
     
 
 def style_background_dashboard():
